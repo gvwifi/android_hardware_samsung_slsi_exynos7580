@@ -41,9 +41,16 @@ struct ExynosSensorInfoBase *createExynosCamera1SensorInfo(int camId)
     case SENSOR_NAME_S5K5E8:
         sensorInfo = new ExynosSensorS5K5E8();
         break;
-    default:
-        android_printAssert(NULL, LOG_TAG, "ASSERT(%s[%d]):Unknown sensor(%d), create default sensor, assert!!!!",
+    case SENSOR_NAME_SR261:
+        sensorInfo = new ExynosSensorSR261();
+        break;
+    case SENSOR_NAME_NOTHING:
+        ALOGW("WARN(%s[%d]):No sensor for camId(%d), returning NULL",
             __FUNCTION__, __LINE__, camId);
+        break;
+    default:
+        ALOGE("ERR(%s[%d]):Unknown sensor(%d) for camId(%d), returning NULL",
+            __FUNCTION__, __LINE__, sensorName, camId);
         break;
     }
 
@@ -145,6 +152,21 @@ ExynosSensorS5K5E8::ExynosSensorS5K5E8()
         | EFFECT_AQUA
         /* | EFFECT_WHITEBOARD */
         /* | EFFECT_BLACKBOARD */
+        ;
+};
+
+ExynosSensorSR261::ExynosSensorSR261()
+{
+    effectList =
+          EFFECT_NONE
+        | EFFECT_MONO
+        | EFFECT_NEGATIVE
+        | EFFECT_SEPIA
+        | EFFECT_POSTERIZE
+        | EFFECT_COLD_VINTAGE
+        | EFFECT_BLUE
+        | EFFECT_RED_YELLOW
+        | EFFECT_AQUA
         ;
 };
 }; /* namespace android */

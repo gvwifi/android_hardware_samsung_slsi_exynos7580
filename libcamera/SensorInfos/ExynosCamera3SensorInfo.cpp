@@ -45,9 +45,16 @@ struct ExynosSensorInfoBase *createExynosCamera3SensorInfo(int camId)
     case SENSOR_NAME_S5K5E3:
         sensorInfo = new ExynosCamera3SensorS5K5E3();
         break;
-    default:
-        android_printAssert(NULL, LOG_TAG, "ASSERT(%s[%d]):Unknown sensor(%d), create default sensor, assert!!!!",
+    case SENSOR_NAME_SR261:
+        sensorInfo = new ExynosCamera3SensorSR261();
+        break;
+    case SENSOR_NAME_NOTHING:
+        ALOGW("WARN(%s[%d]):No sensor for camId(%d), returning NULL",
             __FUNCTION__, __LINE__, camId);
+        break;
+    default:
+        ALOGE("ERR(%s[%d]):Unknown sensor(%d) for camId(%d), returning NULL",
+            __FUNCTION__, __LINE__, sensorId, camId);
         break;
     }
 
@@ -69,6 +76,10 @@ ExynosCamera3SensorS5K5E2::ExynosCamera3SensorS5K5E2() : ExynosCamera3SensorS5K5
 };
 
 ExynosCamera3SensorS5K5E3::ExynosCamera3SensorS5K5E3() : ExynosCamera3SensorS5K5E3Base()
+{
+};
+
+ExynosCamera3SensorSR261::ExynosCamera3SensorSR261() : ExynosCamera3SensorSR261Base()
 {
 };
 

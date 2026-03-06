@@ -97,12 +97,13 @@ LOCAL_CFLAGS += -D$(shell echo $(project_camera) | tr a-z A-Z)_CAMERA
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libexynoscameraexternal
+LOCAL_VENDOR_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)
 
 
 #################
-# camera.exynos7570.so
+# camera.exynos7580.so
 
 include $(CLEAR_VARS)
 
@@ -164,5 +165,6 @@ LOCAL_SHARED_LIBRARIES += libexynosutils libhwjpeg libexynosv4l2 libcsc libion l
 LOCAL_MODULE := camera.$(TARGET_BOOTLOADER_BOARD_NAME)
 
 LOCAL_MODULE_TAGS := optional
+LOCAL_VENDOR_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)

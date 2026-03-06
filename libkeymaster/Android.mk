@@ -19,7 +19,7 @@ include $(CLEAR_VARS)
 
 MOBICORE_PATH := hardware/samsung_slsi/$(TARGET_SOC)/mobicore
 
-LOCAL_MODULE := keystore.exynos7570
+LOCAL_MODULE := keystore.exynos7580
 LOCAL_MODULE_RELATIVE_PATH := hw
 
 ifeq ($(BOARD_USES_KEYMASTER_VER1), true)
@@ -37,8 +37,10 @@ LOCAL_SRC_FILES := \
 	ver0/tlcTeeKeymaster_if.c
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/ver0 \
+	$(LOCAL_PATH)/ver0/include \
 	$(MOBICORE_PATH)/daemon/ClientLib/public \
-	$(MOBICORE_PATH)/common/MobiCore/inc/
+	$(MOBICORE_PATH)/common/MobiCore/inc/ \
+	$(MOBICORE_PATH)/common/LogWrapper/
 LOCAL_C_FLAGS = -fvisibility=hidden -Wall -Werror
 
 ifeq ($(BOARD_USES_KEYMASTER_VER0_3), true)
@@ -46,8 +48,9 @@ ifeq ($(BOARD_USES_KEYMASTER_VER0_3), true)
 endif
 endif
 
-LOCAL_SHARED_LIBRARIES := libcrypto liblog libMcClient libcutils
+LOCAL_SHARED_LIBRARIES := libcrypto liblog libMcClient libcutils libhardware
 LOCAL_MODULE_TAGS := optional
+LOCAL_VENDOR_MODULE := true
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 
 include $(BUILD_SHARED_LIBRARY)

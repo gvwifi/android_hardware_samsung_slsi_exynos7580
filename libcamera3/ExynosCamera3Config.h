@@ -46,7 +46,8 @@
 #define MONITOR_LOG_SYNC_INTERVAL 100
 
 #define USE_HAL3_2_METADATA_INTERFACE
-#define SUPPORT_HAL3_3_METADATA
+/* Kernel FIMC-IS on universal7580 expects HAL3.2 metadata ABI (camera2_shot_ext=30000). */
+/* #define SUPPORT_HAL3_3_METADATA */
 
 #ifndef USE_VENDOR_SPECIFIC_CONFIG_HEADER
 
@@ -77,7 +78,7 @@
 #define LCD_SIZE_1280_720               (2)
 #define LCD_SIZE_1920_1080              (3)
 #define LCD_SIZE_2560_1440              (4)
-#define CAMERA_LCD_SIZE                 LCD_SIZE_1280_720
+#define CAMERA_LCD_SIZE                 LCD_SIZE_1920_1080
 
 /* #define LIMIT_SCP_SIZE_UNTIL_FHD_ON_CAPTURE */   /* Even if LCD is bigger than FHD, limit scp size until FHD on capture preview  */
 #define LIMIT_SCP_SIZE_UNTIL_FHD_ON_RECORDING /* Even if LCD is bigger than FHD, limit scp size until FHD on recording preview*/
@@ -266,7 +267,7 @@ enum REPROCESSING_BAYER_MODE {
 #define USE_DYNAMIC_SCC_FRONT           (false)
 
 #define USE_GSC_FOR_CAPTURE_BACK        (false)
-#define USE_GSC_FOR_CAPTURE_FRONT       (false)
+#define USE_GSC_FOR_CAPTURE_FRONT       (true)
 
 #define MAX_SERIES_SHOT_COUNT           (1000)
 
@@ -283,10 +284,10 @@ enum REPROCESSING_BAYER_MODE {
 #endif
 /* #define USE_BUFFER_WITH_STRIDE */
 
-#define OWN_MCSC_HW                 (true)
+#define OWN_MCSC_HW                 (false)  /* Exynos7580 has no MCSC HW; use SCP (video152) */
 
-/* back */
-#define MAIN_CAMERA_FLITE_NUM                       FIMC_IS_VIDEO_SS0_NUM
+/* back (gvwifi has only front camera at SS1, so MAIN uses SS1 too) */
+#define MAIN_CAMERA_FLITE_NUM                       FIMC_IS_VIDEO_SS1_NUM
 #define MAIN_CAMERA_HAS_OWN_SCC     (false)
 
 #define MAIN_CAMERA_SINGLE_FLITE_3AA_OTF (true)
@@ -295,10 +296,10 @@ enum REPROCESSING_BAYER_MODE {
 #define MAIN_CAMERA_SINGLE_3AA_ISP_OTF (true)
 #define MAIN_CAMERA_DUAL_3AA_ISP_OTF   (false)
 
-#define MAIN_CAMERA_SINGLE_MCSC_VRA_OTF (false)
-#define MAIN_CAMERA_DUAL_MCSC_VRA_OTF   (false)
+#define MAIN_CAMERA_SINGLE_MCSC_VRA_OTF (true)
+#define MAIN_CAMERA_DUAL_MCSC_VRA_OTF   (true)
 
-#define MAIN_CAMERA_SINGLE_REPROCESSING  (true)
+#define MAIN_CAMERA_SINGLE_REPROCESSING  (false)
 #define MAIN_CAMERA_SINGLE_SCC_CAPTURE   (false)
 
 #define MAIN_CAMERA_DUAL_REPROCESSING    (false)
@@ -317,10 +318,10 @@ enum REPROCESSING_BAYER_MODE {
 #define FRONT_CAMERA_SINGLE_3AA_ISP_OTF (true)
 #define FRONT_CAMERA_DUAL_3AA_ISP_OTF   (true)
 
-#define FRONT_CAMERA_SINGLE_MCSC_VRA_OTF (false)
-#define FRONT_CAMERA_DUAL_MCSC_VRA_OTF   (false)
+#define FRONT_CAMERA_SINGLE_MCSC_VRA_OTF (true)
+#define FRONT_CAMERA_DUAL_MCSC_VRA_OTF   (true)
 
-#define FRONT_CAMERA_SINGLE_REPROCESSING  (true)
+#define FRONT_CAMERA_SINGLE_REPROCESSING  (false)
 #define FRONT_CAMERA_SINGLE_SCC_CAPTURE   (false)
 
 #define FRONT_CAMERA_DUAL_REPROCESSING    (false)

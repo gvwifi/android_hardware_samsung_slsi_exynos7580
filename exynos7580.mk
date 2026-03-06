@@ -15,7 +15,7 @@
 #
 
 # video codecs
-PRODUCT_PACKAGES := \
+PRODUCT_PACKAGES += \
 	libOMX.Exynos.AVC.Decoder \
 	libOMX.Exynos.AVC.Encoder \
 	libOMX.Exynos.MPEG4.Decoder \

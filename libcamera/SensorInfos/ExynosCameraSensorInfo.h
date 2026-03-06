@@ -19,8 +19,8 @@
 #define EXYNOS_CAMERA_1_SENSOR_INFO_H
 
 #if 0
-#include <videodev2.h>
-#include <videodev2_exynos_camera.h>
+#include <linux/videodev2.h>
+#include <linux/videodev2_exynos_camera.h>
 #include "ExynosCameraConfig.h"
 #include "ExynosCameraSizeTable.h"
 
@@ -55,6 +55,11 @@ public:
 struct ExynosSensorS5K5E8 : public ExynosSensorS5K5E8Base {
 public:
     ExynosSensorS5K5E8();
+};
+
+struct ExynosSensorSR261 : public ExynosSensorSR261Base {
+public:
+    ExynosSensorSR261();
 };
 }; /* namespace android */
 #endif

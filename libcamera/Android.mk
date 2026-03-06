@@ -25,7 +25,7 @@ BOARD_CAMERA_GED_FEATURE := true
 
 LOCAL_PRELINK_MODULE := false
 
-LOCAL_SHARED_LIBRARIES:= libutils libcutils libbinder liblog libcamera_client libhardware libui
+LOCAL_SHARED_LIBRARIES:= libutils libcutils libbinder liblog libcamera_metadata libhardware libui libcamera_client_shim
 LOCAL_SHARED_LIBRARIES += libexynosutils libhwjpeg libexynosv4l2 libexynosgscaler libion libcsc
 LOCAL_SHARED_LIBRARIES += libexpat libc++
 LOCAL_SHARED_LIBRARIES += libpower
@@ -38,12 +38,28 @@ LOCAL_SHARED_LIBRARIES += libliveframework
 endif
 
 LOCAL_CFLAGS += -DGAIA_FW_BETA
+ifneq ($(BOARD_BACK_CAMERA_SENSOR),)
 LOCAL_CFLAGS += -DMAIN_CAMERA_SENSOR_NAME=$(BOARD_BACK_CAMERA_SENSOR)
+else
+LOCAL_CFLAGS += -DMAIN_CAMERA_SENSOR_NAME=-1
+endif
+ifneq ($(BOARD_FRONT_CAMERA_SENSOR),)
 LOCAL_CFLAGS += -DFRONT_CAMERA_SENSOR_NAME=$(BOARD_FRONT_CAMERA_SENSOR)
+else
+LOCAL_CFLAGS += -DFRONT_CAMERA_SENSOR_NAME=-1
+endif
 LOCAL_CFLAGS += -DUSE_CAMERA_ESD_RESET
+ifneq ($(BOARD_BACK_CAMERA_ROTATION),)
 LOCAL_CFLAGS += -DBACK_ROTATION=$(BOARD_BACK_CAMERA_ROTATION)
+else
+LOCAL_CFLAGS += -DBACK_ROTATION=0
+endif
+ifneq ($(BOARD_FRONT_CAMERA_ROTATION),)
 LOCAL_CFLAGS += -DFRONT_ROTATION=$(BOARD_FRONT_CAMERA_ROTATION)
-ifeq ($(TARGET_BOOTLOADER_BOARD_NAME), universal7570)
+else
+LOCAL_CFLAGS += -DFRONT_ROTATION=0
+endif
+ifeq ($(TARGET_BOOTLOADER_BOARD_NAME), universal7580)
 #LOCAL_CFLAGS += -DUNIVERSAL_CAMERA
 endif
 
@@ -75,9 +91,7 @@ LOCAL_C_INCLUDES += \
 	$(TOP)/hardware/samsung_slsi/exynos7580/libcamera \
 	$(TOP)/hardware/libhardware_legacy/include/hardware_legacy \
 	$(TOP)/vendor/samsung/feature/CscFeature/libsecnativefeature \
-	$(TOP)/bionic \
 	$(TOP)/external/expat/lib \
-	$(TOP)/external/libcxx/include \
 	$(TOP)/frameworks/native/include \
 	$(TOP)/hardware/camera/UniPlugin/include
 
@@ -88,6 +102,7 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/../libcamera/SensorInfos
 endif
 
 LOCAL_SRC_FILES:= \
+	../../../../frameworks/av/camera/CameraParameters.cpp \
 	../../exynos/libcamera/common_v2/ExynosCameraFrame.cpp \
 	../../exynos/libcamera/common_v2/ExynosCameraMemory.cpp \
 	../../exynos/libcamera/common_v2/ExynosCameraFrameManager.cpp \
@@ -142,10 +157,7 @@ $(foreach file,$(LOCAL_SRC_FILES),$(shell touch '$(LOCAL_PATH)/$(file)'))
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libexynoscamera
+LOCAL_VENDOR_MODULE := true
 
 include $(TOP)/hardware/samsung_slsi/exynos/BoardConfigCFlags.mk
 include $(BUILD_SHARED_LIBRARY)
-
-$(warning #####################################)
-$(warning ########    libcamera 1.0    ########)
-$(warning #####################################)

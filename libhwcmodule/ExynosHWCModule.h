@@ -40,7 +40,7 @@
 
 #define DUAL_VIDEO_OVERLAY_SUPPORT
 
-/* Max number windows available in Exynos7570 is 3. */
+/* Max number windows available in Exynos7580 is 3. */
 #define NUM_AVAILABLE_HW_WINDOWS	3
 
 #ifdef FIMD_BW_OVERLAP_CHECK

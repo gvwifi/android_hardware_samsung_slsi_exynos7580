@@ -40,6 +40,8 @@
 #include "CSemaphore.h"
 #include "pthread.h"
 
+#include <string>
+
 using namespace std;
 
 

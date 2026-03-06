@@ -55,8 +55,6 @@ endif
 # Build for the first arch (64-bit)
 LOCAL_MULTILIB := first
 
-LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
-
 LOCAL_SRC_FILES += commonwrapper.cpp
 LOCAL_SRC_FILES += JniHelpers.cpp
 LOCAL_SRC_FILES += CmpResponses.cpp
@@ -69,6 +67,7 @@ LOCAL_C_INCLUDES +=  $(LOCAL_PATH)/../../../../Common/include
 
 LOCAL_MODULE    := libcommonpawrapper
 LOCAL_MODULE_TAGS := optional
+LOCAL_VENDOR_MODULE := true
 
 ifeq ($(ROOTPA_MODULE_TEST), 1)
     LOCAL_STATIC_LIBRARIES += provisioningagent_test

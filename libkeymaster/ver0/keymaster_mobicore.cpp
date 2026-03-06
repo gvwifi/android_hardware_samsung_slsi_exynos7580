@@ -25,10 +25,16 @@
 #include <openssl/evp.h>
 #include <openssl/bio.h>
 #include <openssl/rsa.h>
+#include <openssl/dsa.h>
+#include <openssl/ecdsa.h>
 #include <openssl/err.h>
 #include <openssl/x509.h>
 
-#include <UniquePtr.h>
+
+#include <memory>
+template<typename T, typename D = std::default_delete<T>>
+using UniquePtr = std::unique_ptr<T, D>;
+
 
 #define LOG_TAG "ExynosKeyMaster"
 #include <cutils/log.h>
@@ -167,27 +173,30 @@ static int km_generate_dsa_keypair(const keymaster_dsa_keygen_params_t *dsa_para
 	    return -1;
 	}
 
-	UniquePtr<uint8_t, Malloc_Free> prime_p(static_cast<uint8_t*>(malloc(BN_num_bytes(dsa->p))));
+	const BIGNUM *dsa_p = NULL, *dsa_q = NULL, *dsa_g = NULL;
+	DSA_get0_pqg(dsa.get(), &dsa_p, &dsa_q, &dsa_g);
+
+	UniquePtr<uint8_t, Malloc_Free> prime_p(static_cast<uint8_t*>(malloc(BN_num_bytes(dsa_p))));
 	if (prime_p.get() == NULL) {
 	    ALOGE("Could not allocate memory for prime p");
 	    return -1;
 	}
 
-	UniquePtr<uint8_t, Malloc_Free> prime_q(static_cast<uint8_t*>(malloc(BN_num_bytes(dsa->q))));
+	UniquePtr<uint8_t, Malloc_Free> prime_q(static_cast<uint8_t*>(malloc(BN_num_bytes(dsa_q))));
 	if (prime_q.get() == NULL) {
 	    ALOGE("Could not allocate memory for prime q");
 	    return -1;
 	}
 
-	UniquePtr<uint8_t, Malloc_Free> generator(static_cast<uint8_t*>(malloc(BN_num_bytes(dsa->g))));
+	UniquePtr<uint8_t, Malloc_Free> generator(static_cast<uint8_t*>(malloc(BN_num_bytes(dsa_g))));
 	if (generator.get() == NULL) {
 	    ALOGE("Could not allocate memory for generator");
 	    return -1;
 	}
 
-	tee_dsa_params.pLen = BN_bn2bin(dsa->p, prime_p.get());
-	tee_dsa_params.qLen = BN_bn2bin(dsa->q, prime_q.get());
-	tee_dsa_params.gLen = BN_bn2bin(dsa->g, generator.get());
+	tee_dsa_params.pLen = BN_bn2bin(dsa_p, prime_p.get());
+	tee_dsa_params.qLen = BN_bn2bin(dsa_q, prime_q.get());
+	tee_dsa_params.gLen = BN_bn2bin(dsa_g, generator.get());
 	tee_dsa_params.xLen = tee_dsa_params.qLen;
 	tee_dsa_params.yLen = tee_dsa_params.pLen;
 	tee_dsa_params.p = (uint8_t*)prime_p.get();
@@ -336,8 +345,6 @@ static int km_import_rsa_keypair(EVP_PKEY *pkey, uint8_t *kbuf, uint32_t *key_le
     teeKeyMeta_t meta;
     teeRsaKeyMeta_t rsa_meta;
     uint32_t len = *key_len;
-    BIGNUM *tmp = NULL;
-    BN_CTX *ctx = NULL;
 
     /* change key format */
     Unique_RSA rsa(EVP_PKEY_get1_RSA(pkey));
@@ -346,29 +353,58 @@ static int km_import_rsa_keypair(EVP_PKEY *pkey, uint8_t *kbuf, uint32_t *key_le
 	return -1;
     }
 
-    if (BN_cmp(rsa->p, rsa->q) < 0) {
-        /* p <-> q */
-        tmp = rsa->p;
-        rsa->p = rsa->q;
-        rsa->q = tmp;
-        /* dp <-> dq */
-        tmp = rsa->dmp1;
-        rsa->dmp1 = rsa->dmq1;
-        rsa->dmq1 = tmp;
-        /* calulate inverse of q mod p */
-        ctx = BN_CTX_new();
-        if (!BN_mod_inverse(rsa->iqmp, rsa->q, rsa->p, ctx)) {
-            ALOGE("Calculating inverse of q mod p is failed\n");
+    /* Get RSA key components using accessor APIs (opaque struct) */
+    const BIGNUM *rsa_n = RSA_get0_n(rsa.get());
+    const BIGNUM *rsa_e = RSA_get0_e(rsa.get());
+    const BIGNUM *rsa_d = RSA_get0_d(rsa.get());
+    const BIGNUM *rsa_p = RSA_get0_p(rsa.get());
+    const BIGNUM *rsa_q = RSA_get0_q(rsa.get());
+    const BIGNUM *rsa_dmp1 = RSA_get0_dmp1(rsa.get());
+    const BIGNUM *rsa_dmq1 = RSA_get0_dmq1(rsa.get());
+    const BIGNUM *rsa_iqmp = RSA_get0_iqmp(rsa.get());
+
+    /* We need mutable copies for potential p/q swap */
+    BIGNUM *mut_p = NULL, *mut_q = NULL;
+    BIGNUM *mut_dmp1 = NULL, *mut_dmq1 = NULL;
+    BIGNUM *mut_iqmp = NULL;
+
+    if (rsa_p != NULL && rsa_q != NULL) {
+        if (BN_cmp(rsa_p, rsa_q) < 0) {
+            /* p <-> q: swap p and q, swap dmp1 and dmq1, recompute iqmp */
+            mut_p = BN_dup(rsa_q);
+            mut_q = BN_dup(rsa_p);
+            mut_dmp1 = rsa_dmq1 ? BN_dup(rsa_dmq1) : NULL;
+            mut_dmq1 = rsa_dmp1 ? BN_dup(rsa_dmp1) : NULL;
+            /* recalculate inverse of q mod p */
+            mut_iqmp = BN_new();
+            BN_CTX *ctx = BN_CTX_new();
+            if (!BN_mod_inverse(mut_iqmp, mut_q, mut_p, ctx)) {
+                ALOGE("Calculating inverse of q mod p is failed\n");
+                BN_CTX_free(ctx);
+                BN_free(mut_p); BN_free(mut_q);
+                BN_free(mut_dmp1); BN_free(mut_dmq1);
+                BN_free(mut_iqmp);
+                return -1;
+            }
             BN_CTX_free(ctx);
-            return -1;
+
+            /* Apply swapped values back */
+            RSA_set0_factors(rsa.get(), mut_p, mut_q);
+            RSA_set0_crt_params(rsa.get(), mut_dmp1, mut_dmq1, mut_iqmp);
+
+            /* Re-read after setting */
+            rsa_p = RSA_get0_p(rsa.get());
+            rsa_q = RSA_get0_q(rsa.get());
+            rsa_dmp1 = RSA_get0_dmp1(rsa.get());
+            rsa_dmq1 = RSA_get0_dmq1(rsa.get());
+            rsa_iqmp = RSA_get0_iqmp(rsa.get());
         }
-        BN_CTX_free(ctx);
     }
 
     meta.keytype = TEE_KEYTYPE_RSA;
     len += sizeof(meta);
 
-    rsa_meta.lenpubmod = BN_bn2bin(rsa->n, kbuf + len);
+    rsa_meta.lenpubmod = BN_bn2bin(rsa_n, kbuf + len);
 
     len += rsa_meta.lenpubmod;
     if (rsa_meta.lenpubmod == (512 >> 3))
@@ -386,25 +422,25 @@ static int km_import_rsa_keypair(EVP_PKEY *pkey, uint8_t *kbuf, uint32_t *key_le
         return -1;
     }
 
-    rsa_meta.lenpubexp = BN_bn2bin(rsa->e, kbuf + len);
+    rsa_meta.lenpubexp = BN_bn2bin(rsa_e, kbuf + len);
     len += rsa_meta.lenpubexp;
 
-    if ((rsa->p != NULL) && (rsa->q != NULL) && (rsa->dmp1 != NULL) &&
-	(rsa->dmq1 != NULL) && (rsa->iqmp != NULL)) {
+    if ((rsa_p != NULL) && (rsa_q != NULL) && (rsa_dmp1 != NULL) &&
+	(rsa_dmq1 != NULL) && (rsa_iqmp != NULL)) {
 	rsa_meta.type = TEE_KEYPAIR_RSACRT;
-	rsa_meta.rsacrtpriv.lenp = BN_bn2bin(rsa->p, kbuf + len);
+	rsa_meta.rsacrtpriv.lenp = BN_bn2bin(rsa_p, kbuf + len);
 	len += rsa_meta.rsacrtpriv.lenp;
-	rsa_meta.rsacrtpriv.lenq = BN_bn2bin(rsa->q, kbuf + len);
+	rsa_meta.rsacrtpriv.lenq = BN_bn2bin(rsa_q, kbuf + len);
 	len += rsa_meta.rsacrtpriv.lenq;
-	rsa_meta.rsacrtpriv.lendp = BN_bn2bin(rsa->dmp1, kbuf + len);
+	rsa_meta.rsacrtpriv.lendp = BN_bn2bin(rsa_dmp1, kbuf + len);
 	len += rsa_meta.rsacrtpriv.lendp;
-	rsa_meta.rsacrtpriv.lendq = BN_bn2bin(rsa->dmq1, kbuf + len);
+	rsa_meta.rsacrtpriv.lendq = BN_bn2bin(rsa_dmq1, kbuf + len);
 	len += rsa_meta.rsacrtpriv.lendq;
-	rsa_meta.rsacrtpriv.lenqinv = BN_bn2bin(rsa->iqmp, kbuf + len);
+	rsa_meta.rsacrtpriv.lenqinv = BN_bn2bin(rsa_iqmp, kbuf + len);
 	len += rsa_meta.rsacrtpriv.lenqinv;
     } else {
 	rsa_meta.type = TEE_KEYPAIR_RSA;
-	rsa_meta.rsapriv.lenpriexp = BN_bn2bin(rsa->d, kbuf + len);
+	rsa_meta.rsapriv.lenpriexp = BN_bn2bin(rsa_d, kbuf + len);
 	len += rsa_meta.rsapriv.lenpriexp;
     }
 
@@ -430,19 +466,24 @@ static int km_import_dsa_keypair(EVP_PKEY *pkey, uint8_t *kbuf, uint32_t *key_le
     meta.keytype = TEE_KEYTYPE_DSA;
     len += sizeof(meta);
 
-    meta.dsakey.pLen = BN_bn2bin(dsa->p, kbuf + len);
+    const BIGNUM *dsa_p = NULL, *dsa_q = NULL, *dsa_g = NULL;
+    DSA_get0_pqg(dsa.get(), &dsa_p, &dsa_q, &dsa_g);
+    const BIGNUM *dsa_pub_key = NULL, *dsa_priv_key = NULL;
+    DSA_get0_key(dsa.get(), &dsa_pub_key, &dsa_priv_key);
+
+    meta.dsakey.pLen = BN_bn2bin(dsa_p, kbuf + len);
 
     len += meta.dsakey.pLen;
-    meta.dsakey.qLen = BN_bn2bin(dsa->q, kbuf + len);
+    meta.dsakey.qLen = BN_bn2bin(dsa_q, kbuf + len);
 
     len += meta.dsakey.qLen;
-    meta.dsakey.gLen = BN_bn2bin(dsa->g, kbuf + len);
+    meta.dsakey.gLen = BN_bn2bin(dsa_g, kbuf + len);
 
     len += meta.dsakey.gLen;
-    meta.dsakey.yLen = BN_bn2bin(dsa->pub_key, kbuf + len);
+    meta.dsakey.yLen = BN_bn2bin(dsa_pub_key, kbuf + len);
 
     len += meta.dsakey.yLen;
-    meta.dsakey.xLen = BN_bn2bin(dsa->priv_key, kbuf + len);
+    meta.dsakey.xLen = BN_bn2bin(dsa_priv_key, kbuf + len);
 
     len += meta.dsakey.xLen;
 
@@ -561,7 +602,7 @@ static int exynos_km_import_keypair(const keymaster0_device_t*,
     }
     OWNERSHIP_TRANSFERRED(pkcs8);
 
-    int type = EVP_PKEY_type(pkey->type);
+    int type = EVP_PKEY_id(pkey.get());
     if (type == EVP_PKEY_RSA) {
 	if (km_import_rsa_keypair(pkey.get(), kbuf, &key_len))
 	    return -1;
@@ -630,10 +671,7 @@ static int km_get_rsa_keypair_public(uint8_t *pubkey, EVP_PKEY *pkey) {
         return -1;
     }
 
-    RSA* rsa_tmp = rsa.get();
-
-    rsa_tmp->n = bn_mod.release();
-    rsa_tmp->e = bn_exp.release();
+    RSA_set0_key(rsa.get(), bn_mod.release(), bn_exp.release(), NULL);
 
     /* assign to EVP */
     if (EVP_PKEY_assign_RSA(pkey, rsa.get()) == 0) {
@@ -695,12 +733,8 @@ static int km_get_dsa_keypair_public(uint8_t *pubkey, EVP_PKEY *pkey) {
         return -1;
     }
 
-    DSA* dsa_tmp = dsa.get();
-
-    dsa_tmp->p = bn_p.release();
-    dsa_tmp->q = bn_q.release();
-    dsa_tmp->g = bn_g.release();
-    dsa_tmp->pub_key = bn_y.release();
+    DSA_set0_pqg(dsa.get(), bn_p.release(), bn_q.release(), bn_g.release());
+    DSA_set0_key(dsa.get(), bn_y.release(), NULL);
 
     /* assign to EVP */
     if (EVP_PKEY_assign_DSA(pkey, dsa.get()) == 0) {
@@ -969,11 +1003,10 @@ static int km_dsa_sign_data(const void* params, const uint8_t* keyBlob,
        return -1;
     }
 
-    s->r = bn_sig_r.get();
-    s->s = bn_sig_s.get();
+    BN_bin2bn(tmp_sig, slen, bn_sig_r.get());
+    BN_bin2bn(tmp_sig + slen, slen, bn_sig_s.get());
 
-    BN_bin2bn(tmp_sig, slen, s->r);
-    BN_bin2bn(tmp_sig + slen, slen, s->s);
+    DSA_SIG_set0(s, bn_sig_r.release(), bn_sig_s.release());
 
     UniquePtr<uint8_t, Malloc_Free> encodedSig(reinterpret_cast<uint8_t*>(malloc(DSA_SIG_MAX_SIZE)));
     if (encodedSig.get() == NULL) {
@@ -1033,8 +1066,11 @@ static int km_ecdsa_sign_data(const void* params, const uint8_t* keyBlob,
        return -1;
     }
 
-    BN_bin2bn(tmp_sig, curve, s->r);
-    BN_bin2bn(tmp_sig + curve, curve, s->s);
+    BIGNUM *ec_sig_r = BN_new();
+    BIGNUM *ec_sig_s = BN_new();
+    BN_bin2bn(tmp_sig, curve, ec_sig_r);
+    BN_bin2bn(tmp_sig + curve, curve, ec_sig_s);
+    ECDSA_SIG_set0(s, ec_sig_r, ec_sig_s);
 
     UniquePtr<uint8_t, Malloc_Free> encodedSig(reinterpret_cast<uint8_t*>(malloc(ECDSA_SIG_MAX_SIZE)));
     if (encodedSig.get() == NULL) {
@@ -1183,8 +1219,11 @@ static int km_dsa_verify_data(const void* params, const uint8_t* keyBlob,
         return -1;
     }
 
-    rlen = BN_bn2bin(s->r, sig.get());
-    slen = BN_bn2bin(s->s, sig.get() + rlen);
+    const BIGNUM *sig_r = NULL, *sig_s = NULL;
+    DSA_SIG_get0(s, &sig_r, &sig_s);
+
+    rlen = BN_bn2bin(sig_r, sig.get());
+    slen = BN_bn2bin(sig_s, sig.get() + rlen);
 
     ret = TEE_DSAVerify(keyBlob, keyBlobLength, (const uint8_t*)tmpData.get(),
 			signedDataLength, (const uint8_t *)sig.get(),
@@ -1243,8 +1282,11 @@ static int km_ecdsa_verify_data(const void* params, const uint8_t* keyBlob,
         return -1;
     }
 
-    rlen = BN_bn2bin(s->r, sig.get());
-    slen = BN_bn2bin(s->s, sig.get() + rlen);
+    const BIGNUM *ec_sig_r = NULL, *ec_sig_s = NULL;
+    ECDSA_SIG_get0(s, &ec_sig_r, &ec_sig_s);
+
+    rlen = BN_bn2bin(ec_sig_r, sig.get());
+    slen = BN_bn2bin(ec_sig_s, sig.get() + rlen);
 
     ret = TEE_ECDSAVerify(keyBlob, keyBlobLength, (const uint8_t*)tmpData.get(),
 			signedDataLength, (const uint8_t *)sig.get(),
@@ -1351,24 +1393,24 @@ static int exynos_km_open(const hw_module_t* module, const char* name,
 }
 
 static struct hw_module_methods_t keystore_module_methods = {
-    open: exynos_km_open,
+    .open = exynos_km_open,
 };
 
 struct keystore_module HAL_MODULE_INFO_SYM
 __attribute__ ((visibility ("default"))) = {
-    common: {
-        tag: HARDWARE_MODULE_TAG,
+    .common = {
+        .tag = HARDWARE_MODULE_TAG,
 #if defined(KEYMASTER_VER0_3)
-        version_major: 3,
+        .version_major = 3,
 #else
-        version_major: 2,
+        .version_major = 2,
 #endif
-        version_minor: 0,
-        id: KEYSTORE_HARDWARE_MODULE_ID,
-        name: "Keymaster Exynos HAL",
-        author: "Samsung S.LSI",
-        methods: &keystore_module_methods,
-        dso: 0,
-        reserved: {},
+        .version_minor = 0,
+        .id = KEYSTORE_HARDWARE_MODULE_ID,
+        .name = "Keymaster Exynos HAL",
+        .author = "Samsung S.LSI",
+        .methods = &keystore_module_methods,
+        .dso = 0,
+        .reserved = {},
     },
 };

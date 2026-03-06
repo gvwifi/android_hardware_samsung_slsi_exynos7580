@@ -47,9 +47,7 @@ LOCAL_C_INCLUDES += \
 	$(TOP)/hardware/samsung_slsi/exynos/libcamera/common_v2/Sec \
 	$(TOP)/hardware/samsung_slsi/exynos/include \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)/include \
-	frameworks/native/include \
-	$(TOP)/external/libcxx/include \
-	$(TOP)/bionic
+	frameworks/native/include
 else
 LOCAL_C_INCLUDES += \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/include \
@@ -71,8 +69,6 @@ LOCAL_C_INCLUDES += \
 	$(TOP)/hardware/samsung_slsi/exynos/include \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)/include \
 	frameworks/native/include \
-	$(TOP)/external/libcxx/include \
-	$(TOP)/bionic \
 	$(TOP)/hardware/camera/SensorListener \
 	$(TOP)/hardware/camera/UniPlugin/include
 endif
@@ -91,8 +87,20 @@ LOCAL_SRC_FILES:= \
 	../../exynos/libcamera/common_v2/ExynosCameraInterface.cpp
 endif
 
+ifneq ($(BOARD_BACK_CAMERA_ROTATION),)
 LOCAL_CFLAGS += -DBACK_ROTATION=$(BOARD_BACK_CAMERA_ROTATION)
+else
+LOCAL_CFLAGS += -DBACK_ROTATION=0
+endif
+ifneq ($(BOARD_FRONT_CAMERA_ROTATION),)
 LOCAL_CFLAGS += -DFRONT_ROTATION=$(BOARD_FRONT_CAMERA_ROTATION)
+else
+LOCAL_CFLAGS += -DFRONT_ROTATION=0
+endif
+
+ifeq ($(BOARD_FRONT_CAMERA_ONLY_USE), true)
+LOCAL_CFLAGS += -DBOARD_FRONT_CAMERA_ONLY_USE
+endif
 
 ifeq ($(BOARD_CAMERA_GED_FEATURE), true)
 LOCAL_CFLAGS += -DCAMERA_GED_FEATURE
@@ -101,7 +109,7 @@ ifeq ($(BOARD_CAMERA_HAL3_FEATURE), true)
 LOCAL_CFLAGS += -DUSE_CAMERA2_API_SUPPORT
 endif
 
-LOCAL_SHARED_LIBRARIES:= libutils libcutils libbinder liblog libcamera_client libhardware
+LOCAL_SHARED_LIBRARIES:= libutils libcutils libbinder liblog libcamera_metadata libhardware libui libcamera_client_shim
 LOCAL_SHARED_LIBRARIES += libexynosutils libhwjpeg libexynosv4l2 libcsc libion libcamera_metadata libexynoscamera
 
 ifeq ($(BOARD_CAMERA_HAL3_FEATURE), true)
@@ -122,8 +130,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS += -D$(shell echo $(project_camera) | tr a-z A-Z)_CAMERA
 
 include $(TOP)/hardware/samsung_slsi/exynos/BoardConfigCFlags.mk
-include $(BUILD_SHARED_LIBRARY)
 
-$(warning #####################################)
-$(warning ########    libcamera I/F    ########)
-$(warning #####################################)
+LOCAL_VENDOR_MODULE := true
+
+include $(BUILD_SHARED_LIBRARY)

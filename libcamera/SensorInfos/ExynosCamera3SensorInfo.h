@@ -43,6 +43,11 @@ public:
     ExynosCamera3SensorS5K5E3();
 };
 
+struct ExynosCamera3SensorSR261 : public ExynosCamera3SensorSR261Base {
+public:
+    ExynosCamera3SensorSR261();
+};
+
 /* Helpper functions */
 struct ExynosSensorInfoBase *createExynosCamera3SensorInfo(int sensorName);
 
