@@ -153,7 +153,6 @@ else
 LOCAL_SRC_FILES += ../libcamera/SensorInfos/ExynosCameraSensorInfo.cpp
 endif
 
-$(foreach file,$(LOCAL_SRC_FILES),$(shell touch '$(LOCAL_PATH)/$(file)'))
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libexynoscamera

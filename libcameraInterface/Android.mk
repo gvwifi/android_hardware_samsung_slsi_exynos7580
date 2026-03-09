@@ -116,7 +116,6 @@ ifeq ($(BOARD_CAMERA_HAL3_FEATURE), true)
 LOCAL_SHARED_LIBRARIES += libexynoscamera3
 endif
 
-$(foreach file,$(LOCAL_SRC_FILES),$(shell touch '$(LOCAL_PATH)/$(file)'))
 
 ifeq ($(BOARD_CAMERA_GED_FEATURE), true)
 LOCAL_MODULE := camera.$(TARGET_BOOTLOADER_BOARD_NAME)

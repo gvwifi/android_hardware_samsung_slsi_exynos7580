@@ -146,7 +146,6 @@ LOCAL_SRC_FILES += \
 
 LOCAL_SRC_FILES += ../libcamera/SensorInfos/ExynosCamera3SensorInfo.cpp
 
-$(foreach file,$(LOCAL_SRC_FILES),$(shell touch '$(LOCAL_PATH)/$(file)'))
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_VENDOR_MODULE := true
